@@ -1,63 +1,60 @@
 from flask import request
 from flask_restx import Resource, Namespace
 
-from app.database import db
-from app.models import Director
-from app.schema_app import DirectorSchema
+from app.container import director_service
+from app.dao.model.director import DirectorSchema
 
 director_ns = Namespace('directors')
 
+director_schema = DirectorSchema()
+directors_schema = DirectorSchema(many=True)
 
 @director_ns.route('/')
 class DirectorView(Resource):
     def get(self):
-        directors = db.session.query(Director).all()
-        directors_schema = DirectorSchema(many=True)
+        directors = director_service.get_all()
         if directors:
             return directors_schema.dump(directors), 200
         else:
             return "", 404
 
     def post(self):
-        req_json = request.json
-        new_director = Director(**req_json)
-        with db.session.begin():
-            db.session.add(new_director)
-        return "", 201
-
+        try:
+            req_json = request.json
+            director_service.create(req_json)
+            return "", 201
+        except Exception:
+            return "", 404
 
 @director_ns.route('/<int:did>')
 class DirectorView(Resource):
     def get(self, did: int):
-        director = db.session.query(Director).get(did)
-        director_schema = DirectorSchema()
-        if director:
+        try:
+            director = director_service.get_one(did)
             return director_schema.dump(director), 200
-        else:
+        except Exception:
             return "", 404
-        # try:
-        #     director = Director.query.get(did)
-        #     director_schema = DirectorSchema()
-        #     return director_schema.dump(director), 200
-        # except Exception as e:
-        #     return "", 404
 
     def put(self, did: int):
-        director = db.session.query(Director).get(did)
-        if director:
+        try:
             req_json = request.json
-            director.name = req_json.get("name")
-            db.session.add(director)
-            db.session.commit()
+            director_service.update(did, req_json)
             return "", 204
-        else:
+        except Exception:
+            return "", 404
+
+
+    def patch(self, did: int):
+        try:
+            req_json = request.json
+            director_service.update_partial(did, req_json)
+            return "", 204
+        except Exception:
             return "", 404
 
     def delete(self, did: int):
-        director = Director.query.get(did)
-        if director:
-            db.session.delete(director)
-            db.session.commit()
+        try:
+            director_service.delete(did)
             return "", 204
-        else:
+        except Exception:
             return "", 404
